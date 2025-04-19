@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "Metal/MTLBuffer.hpp"
+#include "Metal/MTLDevice.hpp"
 #include "gemm/params.h"
 
 struct Matrix
@@ -19,6 +20,7 @@ struct Matrix
   }
 
   Matrix(MTL::Device* device, uint rows, uint cols);
+  Matrix(MTL::Device* device, uint size);  // square matrix
 
   float* host_data() const { return static_cast<float*>(data->contents()); }
   float& operator[](uint index) { return host_data()[index]; }

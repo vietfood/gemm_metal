@@ -19,21 +19,13 @@ constexpr MTL::CounterSamplingPoint all_boundaries[] = {
 struct MetalMgr
 {
   MTL::Device* device = nullptr;
-  MTL::Library* library = nullptr;
   MTL::CommandQueue* cmd_queue = nullptr;
-  MTL::Function* func = nullptr;
-  MTL::ComputePipelineState* pipeline = nullptr;
   MTL::CounterSet* counter_set = nullptr;
   MTL::CounterSampleBufferDescriptor* sample_desc = nullptr;
   MTL::CounterSampleBuffer* counter_buffer = nullptr;
 
   MetalMgr();
   ~MetalMgr();
-
-  void set_kernel(const std::string& path, const std::string& func_name);
-  void warmup(const Matrix& A, const Matrix& B, Matrix& C);
-  void run(const Matrix& A, const Matrix& B, Matrix& C);
-  double get_run_time() const;
 };
 
 // https://developer.apple.com/documentation/metal/confirming-which-counters-and-counter-sets-a-gpu-supports?language=objc
@@ -68,13 +60,10 @@ inline std::vector<size_t> sampling_boundaries_for(MTL::Device* device)
       if (boundaries.size() >= 1) {
         std::cout << ",";
       }
-
       std::cout << boundary_names[index];
-
       boundaries.push_back(index);
     }
   }
-
   std::cout << "]\n";
 
   return boundaries;

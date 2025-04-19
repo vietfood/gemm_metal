@@ -5,8 +5,7 @@
 #include <sstream>
 #include <string>
 
-#include "gemm/metal_mgr.h"
-#include "gemm/params.h"
+#include "gemm/matrix.h"
 
 inline std::string read_file(const std::string& path)
 {
@@ -139,16 +138,28 @@ inline float matmul_time_to_gflops(float rows,
   return FLOPS / (microsecs * 1e6);
 }
 
-inline double benchmark(MetalMgr* mgr,
-                        const Matrix& A,
-                        const Matrix& B,
-                        Matrix& C)
+inline void matmul_cpu(const Matrix& A, const Matrix& B, Matrix& C)
 {
-  // run for multiple time
-  double total_time = 0;
-  for (int time = 0; time < BENCHMARK_TIME; ++time) {
-    mgr->run(A, B, C);
-    total_time += mgr->get_run_time();
+  assert(A.cols == A.rows);  // assume square matrix
+  assert(B.cols == B.rows);  // assume square matrix
+  assert(A.cols == B.rows);
+
+  assert(C.cols == B.cols);
+  assert(C.rows = A.rows);
+
+  uint M = C.rows;
+  uint N = C.cols;
+  uint K = A.cols;
+
+  uint LDA = K;
+  uint LDB = N;
+  uint LDC = N;
+
+  for (uint i = 0; i < M; ++i) {
+    for (uint j = 0; j < N; ++j) {
+      for (uint p = 0; p < K; ++p) {
+        C[i * LDC + j] += (A[i * LDA + p] * B[p * LDB + j]);
+      }
+    }
   }
-  return total_time / static_cast<double>(BENCHMARK_TIME);
 }

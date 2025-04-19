@@ -13,6 +13,14 @@ Matrix::Matrix(MTL::Device* device, uint rows, uint cols)
                            MTL::ResourceStorageModeShared);
 }
 
+Matrix::Matrix(MTL::Device* device, uint size)
+    : rows(size)
+    , cols(size)
+{
+  data = device->newBuffer(cols * rows * sizeof(float),
+                           MTL::ResourceStorageModeShared);
+}
+
 void Matrix::free()
 {
   data->release();
@@ -22,6 +30,8 @@ void Matrix::free()
 
 void Matrix::print()
 {
+  std::cout << "Row: " << rows << ", Cols: " << cols << "\n";
+
   const float* raw_data = static_cast<float*>(data->contents());
   for (size_t i = 0; i < rows; i++) {
     for (size_t j = 0; j < cols; j++) {
@@ -33,10 +43,10 @@ void Matrix::print()
 
 void Matrix::random_data(float mu, float std)
 {
-  std::random_device rand_dev;
-  std::mt19937 generator(rand_dev());
-  std::normal_distribution<float> distr(mu, std);
+  static std::random_device rand_dev;
+  static std::mt19937 generator(rand_dev());
 
+  std::normal_distribution<float> distr(mu, std);
   float* raw_data = static_cast<float*>(data->contents());
   for (size_t i = 0; i < rows * cols; i++) {
     raw_data[i] = distr(generator);
