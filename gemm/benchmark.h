@@ -6,7 +6,7 @@
 #include "gemm/kernel.h"
 #include "gemm/metal_mgr.h"
 
-static const std::string OPT_NAME[] = {"naive", "opt_1", "opt_2"};
+static const std::string OPT_NAME[] = {"naive", "opt_1", "opt_2", "opt_3"};
 
 class BenchmarkMgr
 {
@@ -17,6 +17,7 @@ public:
   void run_naive();
   void run_opt1();
   void run_opt2();
+  void run_opt3();
 
 private:
   void run_common(const Matrix& A,

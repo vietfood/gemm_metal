@@ -142,6 +142,29 @@ void BenchmarkMgr::run_opt2()
   }
 }
 
+void BenchmarkMgr::run_opt3()
+{
+  auto kernel = kernels_.at("opt_3");
+
+  for (uint mat_size = PFIRST; mat_size < PLAST; mat_size += PINC) {
+    CREATE_DATA();
+
+    // calculate thread_group_count and size
+    const uint x_thread_group_count =
+        (C.rows + X_THREADS_PER_GROUP - 1) / X_THREADS_PER_GROUP;
+    const uint y_thread_group_count =
+        (C.cols + Y_THREADS_PER_GROUP - 1) / Y_THREADS_PER_GROUP;
+
+    MTL::Size thread_group_count =
+        MTL::Size::Make(x_thread_group_count, y_thread_group_count, 1);
+    MTL::Size thread_group_size =
+        MTL::Size::Make(X_THREADS_PER_GROUP * Y_THREADS_PER_GROUP, 1, 1);
+
+    RUN();
+    DELETE_DATA()
+  }
+}
+
 double BenchmarkMgr::run_multiples(const Matrix& A,
                                    const Matrix& B,
                                    Matrix& C,
