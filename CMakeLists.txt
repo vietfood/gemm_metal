@@ -15,7 +15,7 @@ set(INCLUDE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/gemm"
 )
 
-add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+add_compile_options(-fsanitize=address -fsanitize=undefined)
 link_libraries(-fsanitize=address -fsanitize=undefined)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/metal")

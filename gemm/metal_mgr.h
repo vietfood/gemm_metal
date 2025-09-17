@@ -3,11 +3,8 @@
 #include <iostream>
 
 #include "Metal/MTLCommandQueue.hpp"
-#include "Metal/MTLComputePipeline.hpp"
 #include "Metal/MTLCounters.hpp"
 #include "Metal/MTLDevice.hpp"
-#include "Metal/MTLLibrary.hpp"
-#include "gemm/matrix.h"
 
 constexpr MTL::CounterSamplingPoint all_boundaries[] = {
     MTL::CounterSamplingPointAtStageBoundary,
@@ -15,18 +12,6 @@ constexpr MTL::CounterSamplingPoint all_boundaries[] = {
     MTL::CounterSamplingPointAtBlitBoundary,
     MTL::CounterSamplingPointAtDispatchBoundary,
     MTL::CounterSamplingPointAtTileDispatchBoundary};
-
-struct MetalMgr
-{
-  MTL::Device* device = nullptr;
-  MTL::CommandQueue* cmd_queue = nullptr;
-  MTL::CounterSet* counter_set = nullptr;
-  MTL::CounterSampleBufferDescriptor* sample_desc = nullptr;
-  MTL::CounterSampleBuffer* counter_buffer = nullptr;
-
-  MetalMgr();
-  ~MetalMgr();
-};
 
 // https://developer.apple.com/documentation/metal/confirming-which-counters-and-counter-sets-a-gpu-supports?language=objc
 inline MTL::CounterSet* get_counter_set(NS::String* common_counter_name,
@@ -68,3 +53,15 @@ inline std::vector<size_t> sampling_boundaries_for(MTL::Device* device)
 
   return boundaries;
 }
+
+struct MetalMgr
+{
+  MTL::Device* device = nullptr;
+  MTL::CommandQueue* cmd_queue = nullptr;
+  MTL::CounterSet* counter_set = nullptr;
+  MTL::CounterSampleBufferDescriptor* sample_desc = nullptr;
+  MTL::CounterSampleBuffer* counter_buffer = nullptr;
+
+  MetalMgr();
+  ~MetalMgr();
+};
