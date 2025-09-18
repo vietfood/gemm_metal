@@ -1,55 +1,103 @@
 #pragma once
 
 #include <cstddef>
+#include <iostream>
+#include <memory>
+#include <random>
 
 #include "Metal/MTLBuffer.hpp"
 #include "Metal/MTLDevice.hpp"
-#include "gemm/params.h"
 
-struct Matrix
+struct MetalBufferDeleter
 {
-  uint rows;
-  uint cols;
-  MTL::Buffer* data;
+  void operator()(MTL::Buffer* buf) const { buf->release(); }
+};
+
+using BufferPtr = std::unique_ptr<MTL::Buffer, MetalBufferDeleter>;
+
+class Matrix
+{
+public:
+  size_t rows;
+  size_t cols;
 
   Matrix()
       : rows(0)
       , cols(0)
-      , data(nullptr)
+      , data_(nullptr)
   {
   }
 
-  Matrix(MTL::Device* device, uint rows, uint cols);
-  Matrix(MTL::Device* device, uint size);  // square matrix
+  Matrix(MTL::Device* device, size_t rows, size_t cols, float value = 0)
+      : rows(rows)
+      , cols(cols)
+      , data_(nullptr)
+  {
+    if (device == nullptr) {
+      throw std::runtime_error("Cannot create matrix with empty device");
+    }
 
-  float* host_data() const { return static_cast<float*>(data->contents()); }
-  float& operator[](uint index) { return host_data()[index]; }
-  const float& operator[](uint index) const { return host_data()[index]; }
+    data_ = BufferPtr(device->newBuffer(cols * rows * sizeof(float),
+                                        MTL::ResourceStorageModeShared));
+    this->fill(value);
+  }
 
-  void free();
-  void print();
-  // random based on normal distribution
-  void random_data(float mu, float std);
-  void fill(float value);
-};
+  Matrix(MTL::Device* device, size_t size, float value = 0)
+      : Matrix(device, size, size, value)
+  {
+  }
 
-inline bool equals(const Matrix& A, const Matrix& B)
-{
-  assert(A.cols == B.cols);
-  assert(B.rows == A.rows);
+  MTL::Buffer* device_data() { return data_.get(); }
+  const MTL::Buffer* device_data() const { return data_.get(); }
 
-  uint rows = A.rows;
-  uint cols = A.cols;
+  const float* host_data() const
+  {
+    return static_cast<float*>(data_.get()->contents());
+  }
+  float* data() { return static_cast<float*>(data_.get()->contents()); }
 
-  for (size_t i = 0; i < rows * cols; ++i) {
-    float a = A[i];
-    float b = B[i];
-    bool is_approx_equal = fabs(a - b)
-        <= ((fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * EQUAL_EPSILON);
-    if (!is_approx_equal) {
-      return false;
+  float& operator[](size_t index) { return data()[index]; }
+  const float& operator[](size_t index) const { return host_data()[index]; }
+
+  void print()
+  {
+    std::cout << "Row: " << rows << ", Cols: " << cols << "\n";
+    const float* raw_data = this->data();
+    for (size_t i = 0; i < rows; i++) {
+      for (size_t j = 0; j < cols; j++) {
+        std::cout << raw_data[i * cols + j] << " ";
+      }
+      std::cout << "\n";
     }
   }
 
-  return true;
-}
+  // create a random matrix
+  static Matrix random(
+      MTL::Device* device, float mu, float std, size_t rows, size_t cols)
+  {
+    static std::random_device rand_dev;
+    static std::mt19937 generator(rand_dev());
+    std::normal_distribution<float> distr(mu, std);
+
+    // create matrix
+    auto mat = Matrix(device, rows, cols, 0);
+    float* raw_data = mat.data();
+    for (size_t i = 0; i < rows * cols; i++) {
+      raw_data[i] = distr(generator);
+    }
+
+    return mat;
+  }
+
+  // fill matrix with value
+  void fill(float value)
+  {
+    float* raw_data = this->data();
+    for (size_t i = 0; i < rows * cols; i++) {
+      raw_data[i] = value;
+    }
+  }
+
+private:
+  BufferPtr data_;
+};

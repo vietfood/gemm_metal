@@ -4,29 +4,32 @@ From Wikipedia [^1], Peak performance of my GPU (Apple's M2) is 3.6 TFLOPs = 360
 
 #### Set up
 
-You need to have `clang` compiler from Brew and `cmake, make`. So make sure you have installed all of them.
-
+- You need to have `clang` compiler from Brew and `cmake, make`. So make sure you have installed all of them.
 ```bash
-brew install llvm cmake make
+brew install llvm@20 cmake make
+# Note: Currently llvm newest version (21) cannot work with MacOS properly
 ```
 
-Then create a folder (for me I created `build` folder), go into this folder and type:
+- Also remember to create `outputs` folder for `csv` logging.
+
+- Then create a folder (for me I created `build` folder), go into that folder and type:
 ```bash
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ ..
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE \
+      -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@20/bin/clang \
+      -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@20/bin/clang++ \
+      -G "Unix Makefiles" \
+      ..
 ```
 
-And finally run `make` to build. After a successful build, you can run the benchmark as below:
+- And finally run `make` to build. After a successful build, you can run the benchmark as below:
 ```bash
 ./bin/gemm <method_name>
 # for example
 # ./bin/gemm naive
 ```
 
-> Valid names: "naive", "opt_1", "opt_2", "opt_3".
-
-#### Naive method
-
-With the naive method, we gots, which is really far from our peak performance.
+> Valid names: "naive"
 
 ### References 
 
@@ -34,6 +37,5 @@ With the naive method, we gots, which is really far from our peak performance.
 - https://github.com/leimao/CUDA-GEMM-Optimization/blob/main
 - https://siboehm.com/articles/22/CUDA-MMM
 - https://github.com/bkvogel/metal_performance_testing/tree/main
-
 
 [^1]: en.wikipedia.org/wiki/Apple_M2

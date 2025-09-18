@@ -6,6 +6,7 @@
 #include <string>
 
 #include "gemm/matrix.h"
+#include "gemm/params.h"
 
 inline std::string read_file(const std::string& path)
 {
@@ -140,10 +141,7 @@ inline float matmul_time_to_gflops(float rows,
 
 inline void matmul_cpu(const Matrix& A, const Matrix& B, Matrix& C)
 {
-  assert(A.cols == A.rows);  // assume square matrix
-  assert(B.cols == B.rows);  // assume square matrix
   assert(A.cols == B.rows);
-
   assert(C.cols == B.cols);
   assert(C.rows = A.rows);
 
@@ -162,4 +160,25 @@ inline void matmul_cpu(const Matrix& A, const Matrix& B, Matrix& C)
       }
     }
   }
+}
+
+inline bool equals(const Matrix& A, const Matrix& B)
+{
+  assert(A.cols == B.cols);
+  assert(B.rows == A.rows);
+
+  uint rows = A.rows;
+  uint cols = A.cols;
+
+  for (size_t i = 0; i < rows * cols; ++i) {
+    float a = A[i];
+    float b = B[i];
+    bool is_approx_equal = fabs(a - b)
+        <= ((fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * EQUAL_EPSILON);
+    if (!is_approx_equal) {
+      return false;
+    }
+  }
+
+  return true;
 }
