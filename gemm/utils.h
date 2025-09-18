@@ -139,7 +139,7 @@ inline float matmul_time_to_gflops(float rows,
   return FLOPS / (microsecs * 1e6);
 }
 
-inline void matmul_cpu(const Matrix& A, const Matrix& B, Matrix& C)
+inline void matmul_cpu(const HostMatrix& A, const HostMatrix& B, HostMatrix& C)
 {
   assert(A.cols == B.rows);
   assert(C.cols == B.cols);
@@ -162,7 +162,7 @@ inline void matmul_cpu(const Matrix& A, const Matrix& B, Matrix& C)
   }
 }
 
-inline bool equals(const Matrix& A, const Matrix& B)
+inline bool equals(const HostMatrix& A, const HostMatrix& B)
 {
   assert(A.cols == B.cols);
   assert(B.rows == A.rows);
@@ -181,4 +181,25 @@ inline bool equals(const Matrix& A, const Matrix& B)
   }
 
   return true;
+}
+
+inline void copy(const HostMatrix& src, DeviceMatrix& dst)
+{
+  assert(src.rows == dst.rows);
+  assert(src.cols == dst.cols);
+  const size_t byte_size = src.rows * src.cols * sizeof(float);
+  // On unified memory, host_data() and device_data()->contents() point to the
+  // same region. A memcpy is the most direct way to express the copy
+  // operation.
+  std::memcpy(static_cast<float*>(dst.data()->contents()), src.data(),
+              byte_size);
+}
+
+inline void copy(DeviceMatrix& src, HostMatrix& dst)
+{
+  assert(src.rows == dst.rows);
+  assert(src.cols == dst.cols);
+  const size_t byte_size = src.rows * src.cols * sizeof(float);
+  std::memcpy(dst.data(), static_cast<float*>(src.data()->contents()),
+              byte_size);
 }

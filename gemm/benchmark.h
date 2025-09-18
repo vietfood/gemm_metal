@@ -15,22 +15,20 @@ public:
   BenchmarkMgr();
   ~BenchmarkMgr();
 
-  void run_naive();
-
-private:
   void run_benchmark_suite(const std::string& kernel_name);
 
-  void start_kernel(const Matrix& A,
-                    const Matrix& B,
-                    Matrix& C,
+private:
+  void start_kernel(const DeviceMatrix& A,
+                    const DeviceMatrix& B,
+                    DeviceMatrix& C,
                     Kernel* kernel,
                     MTL::Size grid_size,
                     MTL::Size block_size,
                     bool timer = false);
 
-  double run_multiples(const Matrix& A,
-                       const Matrix& B,
-                       Matrix& C,
+  double run_multiples(const DeviceMatrix& A,
+                       const DeviceMatrix& B,
+                       DeviceMatrix& C,
                        Kernel* kernel,
                        MTL::Size grid_size,
                        MTL::Size block_size);
@@ -39,5 +37,5 @@ private:
 
 private:
   std::unique_ptr<MetalMgr> metal_;
-  std::unordered_map<std::string, Kernel*> kernels_;
+  std::unordered_map<std::string, std::unique_ptr<Kernel>> kernels_;
 };
