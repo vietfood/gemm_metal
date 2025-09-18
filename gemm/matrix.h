@@ -1,13 +1,18 @@
 #pragma once
 
+#include "Metal/MTLResource.hpp"
+#pragma once
+
 #include <cstddef>
 #include <iostream>
 #include <memory>
 #include <random>
+#include <vector>
 
 #include "Metal/MTLBuffer.hpp"
 #include "Metal/MTLDevice.hpp"
 
+/** Matrix Class on GPU */
 struct MetalBufferDeleter
 {
   void operator()(MTL::Buffer* buf) const { buf->release(); }
@@ -15,20 +20,13 @@ struct MetalBufferDeleter
 
 using BufferPtr = std::unique_ptr<MTL::Buffer, MetalBufferDeleter>;
 
-class Matrix
+class DeviceMatrix
 {
 public:
   size_t rows;
   size_t cols;
 
-  Matrix()
-      : rows(0)
-      , cols(0)
-      , data_(nullptr)
-  {
-  }
-
-  Matrix(MTL::Device* device, size_t rows, size_t cols, float value = 0)
+  DeviceMatrix(MTL::Device* device, size_t rows, size_t cols)
       : rows(rows)
       , cols(cols)
       , data_(nullptr)
@@ -39,48 +37,63 @@ public:
 
     data_ = BufferPtr(device->newBuffer(cols * rows * sizeof(float),
                                         MTL::ResourceStorageModeShared));
-    this->fill(value);
   }
 
-  Matrix(MTL::Device* device, size_t size, float value = 0)
-      : Matrix(device, size, size, value)
+  const MTL::Buffer* data() const { return data_.get(); }
+  MTL::Buffer* data() { return data_.get(); }
+
+private:
+  BufferPtr data_;
+};
+
+/** Matrix Class on CPU */
+class HostMatrix
+{
+public:
+  size_t rows;
+  size_t cols;
+
+  HostMatrix()
+      : rows(0)
+      , cols(0)
+      , data_()
   {
   }
 
-  MTL::Buffer* device_data() { return data_.get(); }
-  const MTL::Buffer* device_data() const { return data_.get(); }
-
-  const float* host_data() const
+  HostMatrix(size_t rows, size_t cols, float value = 0)
+      : rows(rows)
+      , cols(cols)
+      , data_(rows * cols, value)
   {
-    return static_cast<float*>(data_.get()->contents());
   }
-  float* data() { return static_cast<float*>(data_.get()->contents()); }
+
+  const float* data() const { return data_.data(); }
+  float* data() { return data_.data(); }
 
   float& operator[](size_t index) { return data()[index]; }
-  const float& operator[](size_t index) const { return host_data()[index]; }
+  const float& operator[](size_t index) const { return data()[index]; }
 
   void print()
   {
     std::cout << "Row: " << rows << ", Cols: " << cols << "\n";
-    const float* raw_data = this->data();
+    const float* data = this->data();
     for (size_t i = 0; i < rows; i++) {
       for (size_t j = 0; j < cols; j++) {
-        std::cout << raw_data[i * cols + j] << " ";
+        std::cout << data[i * cols + j] << " ";
       }
       std::cout << "\n";
     }
   }
 
   // create a random matrix
-  static Matrix random(
-      MTL::Device* device, float mu, float std, size_t rows, size_t cols)
+  static HostMatrix random(float mu, float std, size_t rows, size_t cols)
   {
     static std::random_device rand_dev;
     static std::mt19937 generator(rand_dev());
     std::normal_distribution<float> distr(mu, std);
 
     // create matrix
-    auto mat = Matrix(device, rows, cols, 0);
+    auto mat = HostMatrix(rows, cols, 0);
     float* raw_data = mat.data();
     for (size_t i = 0; i < rows * cols; i++) {
       raw_data[i] = distr(generator);
@@ -89,15 +102,6 @@ public:
     return mat;
   }
 
-  // fill matrix with value
-  void fill(float value)
-  {
-    float* raw_data = this->data();
-    for (size_t i = 0; i < rows * cols; i++) {
-      raw_data[i] = value;
-    }
-  }
-
 private:
-  BufferPtr data_;
+  std::vector<float> data_;
 };

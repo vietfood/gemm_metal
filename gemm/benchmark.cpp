@@ -18,7 +18,7 @@ BenchmarkMgr::BenchmarkMgr()
   try {
     metal_ = std::make_unique<MetalMgr>();
     for (const auto& name : OPT_NAME) {
-      kernels_[name] = new Kernel(name, metal_->device);
+      kernels_[name] = std::make_unique<Kernel>(name, metal_->device);
     }
   } catch (...) {
     throw;
@@ -27,15 +27,7 @@ BenchmarkMgr::BenchmarkMgr()
 
 BenchmarkMgr::~BenchmarkMgr()
 {
-  for (auto& [name, kernel] : kernels_) {
-    delete kernel;
-  }
   kernels_.clear();
-}
-
-void BenchmarkMgr::run_naive()
-{
-  run_benchmark_suite("naive");
 }
 
 void BenchmarkMgr::run_benchmark_suite(const std::string& kernel_name)
@@ -45,7 +37,7 @@ void BenchmarkMgr::run_benchmark_suite(const std::string& kernel_name)
     throw std::runtime_error("Kernel not found: " + kernel_name);
   }
 
-  Kernel* kernel = kernel_iter->second;
+  Kernel* kernel = kernel_iter->second.get();
   std::cout << "\n--- Running Benchmark Suite for Kernel: " << kernel_name
             << " ---\n";
 
@@ -60,20 +52,44 @@ void BenchmarkMgr::run_benchmark_suite(const std::string& kernel_name)
     std::cout << "Benchmarking shape (M, N, K): (" << M << ", " << N << ", "
               << K << ")... ";
 
-    Matrix A = Matrix::random(metal_->device, 0.f, 1.f, M, K);
-    Matrix B = Matrix::random(metal_->device, 0.f, 1.f, K, N);
-    Matrix C(metal_->device, M, N);
+    /* ----- Setup ------ */
+    // 1. Create matrices on the HOST using HostMatrix
+    HostMatrix A = HostMatrix::random(0.f, 1.f, M, K);
+    HostMatrix B = HostMatrix::random(0.f, 1.f, K, N);
 
-    // We use thread size 32 as CUDA
-    MTL::Size block = MTL::Size::Make(32, 32, 1);
-    MTL::Size grid = MTL::Size::Make((N + 32 - 1) / 32, (M + 32 - 1) / 32, 1);
+    // 2. Allocate matrices on the DEVICE
+    DeviceMatrix d_A(metal_->device, M, K);
+    DeviceMatrix d_B(metal_->device, K, N);
+    DeviceMatrix d_C(metal_->device, M, N);
 
-    // First, warm up
-    start_kernel(A, B, C, kernel, grid, block, false);
+    // 3. Copy data from HOST to DEVICE
+    copy(A, d_A);
+    copy(B, d_B);
 
-    // Then, check correctness
+    /* ------ Run ------ */
+    // 1. Get the kernel-specific configuration
+    const auto& config = kernel->config();
+
+    // 2. Set the block size (threadgroup size) from the config
+    MTL::Size block =
+        MTL::Size::Make(config.block_width, config.block_height, 1);
+
+    // 3. Calculate the grid size BASED ON TILE DIMENSIONS
+    const size_t grid_x = (N + (config.tile_width * config.block_width) - 1)
+        / (config.tile_width * config.block_width);
+    const size_t grid_y = (M + (config.tile_height * config.block_height) - 1)
+        / (config.tile_height * config.block_height);
+    MTL::Size grid = MTL::Size::Make(grid_x, grid_y, 1);
+
+    // 4. Warm up
+    start_kernel(d_A, d_B, d_C, kernel, grid, block, false);
+
+    // 5. Check correctness
     if (M <= 1024 && N <= 1024 && K <= 1024) {  // Example condition
-      Matrix D(metal_->device, M, N);  // CPU matrix doesn't need a device
+      HostMatrix C(M, N);
+      copy(d_C, C);
+
+      HostMatrix D(M, N);
       matmul_cpu(A, B, D);
       if (!equals(C, D)) {
         throw std::runtime_error("FAILED correctness check for shape ("
@@ -82,8 +98,8 @@ void BenchmarkMgr::run_benchmark_suite(const std::string& kernel_name)
       }
     }
 
-    // Timed benchmark runs
-    double time_ms = run_multiples(A, B, C, kernel, grid, block);
+    // 6. Timed benchmark runs
+    double time_ms = run_multiples(d_A, d_B, d_C, kernel, grid, block);
     double gflops = matmul_time_to_gflops(M, N, K, time_ms);
 
     std::cout << "Time: " << time_ms << " ms, GFLOPS: " << gflops << "\n";
@@ -91,9 +107,9 @@ void BenchmarkMgr::run_benchmark_suite(const std::string& kernel_name)
   }
 }
 
-void BenchmarkMgr::start_kernel(const Matrix& A,
-                                const Matrix& B,
-                                Matrix& C,
+void BenchmarkMgr::start_kernel(const DeviceMatrix& A,
+                                const DeviceMatrix& B,
+                                DeviceMatrix& C,
                                 Kernel* kernel,
                                 MTL::Size grid_size,
                                 MTL::Size block_size,
@@ -148,9 +164,9 @@ void BenchmarkMgr::start_kernel(const Matrix& A,
 
   // create compute pipeline
   // move buffer to GPU
-  compute_encoder->setBuffer(A.device_data(), 0, 0);
-  compute_encoder->setBuffer(B.device_data(), 0, 1);
-  compute_encoder->setBuffer(C.device_data(), 0, 2);
+  compute_encoder->setBuffer(A.data(), 0, 0);
+  compute_encoder->setBuffer(B.data(), 0, 1);
+  compute_encoder->setBuffer(C.data(), 0, 2);
 
   // move matrix params to GPU
   compute_encoder->setBytes(&params, sizeof(MatmulParams), 3);
@@ -177,9 +193,9 @@ double BenchmarkMgr::get_run_time() const
   return ms;
 }
 
-double BenchmarkMgr::run_multiples(const Matrix& A,
-                                   const Matrix& B,
-                                   Matrix& C,
+double BenchmarkMgr::run_multiples(const DeviceMatrix& A,
+                                   const DeviceMatrix& B,
+                                   DeviceMatrix& C,
                                    Kernel* kernel,
                                    MTL::Size grid_size,
                                    MTL::Size block_size)

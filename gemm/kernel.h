@@ -5,6 +5,18 @@
 #include "Metal/MTLLibrary.hpp"
 #include "gemm/utils.h"
 
+struct KernelConfig
+{
+  // The dimensions of the threadgroup (block) in threads.
+  size_t block_width = 32;
+  size_t block_height = 32;
+
+  // The dimensions of the output tile processed by a single threadgroup.
+  // This is crucial for calculating the grid size correctly.
+  size_t tile_width = 1;
+  size_t tile_height = 1;
+};
+
 class Kernel
 {
 public:
@@ -13,6 +25,17 @@ public:
   {
     if (device_ == nullptr) {
       throw std::runtime_error("Device for kernel cannot be empty");
+    }
+
+    // setup kernel configuration
+    if (kernel_name == "naive") {
+      config_ = {.block_width = 32,
+                 .block_height = 32,
+                 .tile_width = 1,
+                 .tile_height = 1};
+    } else {
+      throw std::runtime_error("Unknown kernel name for configuration: "
+                               + kernel_name);
     }
 
     NS::Error* error;
@@ -62,11 +85,13 @@ public:
   MTL::Function* function() const { return func_; }
   MTL::ComputePipelineState* pipeline() const { return pipeline_; }
   CSVWriter& writer() const { return *writer_; }
+  const KernelConfig& config() const { return config_; }
 
 private:
-  MTL::Library* library_ = nullptr;
-  MTL::Function* func_ = nullptr;
-  MTL::ComputePipelineState* pipeline_ = nullptr;
-  MTL::Device* device_ = nullptr;
-  std::unique_ptr<CSVWriter> writer_ = nullptr;
+  MTL::Library* library_;
+  MTL::Function* func_;
+  MTL::ComputePipelineState* pipeline_;
+  MTL::Device* device_;
+  std::unique_ptr<CSVWriter> writer_;
+  KernelConfig config_;
 };
