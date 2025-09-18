@@ -31,10 +31,14 @@ kernel void matmul_naive(device const float * A [[buffer(0)]],
     const uint j = block_x * params.BLOCK_SIZE_X + thread_x; // row
     const uint i = block_y * params.BLOCK_SIZE_Y + thread_y; // col
 
-    if (i < params.M && j < params.N)
+    const uint M = params.M;
+    const uint N = params.N;
+    const uint K = params.K;
+
+    if (i < M && j < N)
     {
         float sum = 0.f;
-        for (uint p = 0; p < params.K; ++p)
+        for (uint p = 0; p < K; ++p)
         {
             sum += A[i * K + p] * B[p * N + j];
         }

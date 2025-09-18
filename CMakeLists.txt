@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(gemm VERSION 1.0.0 LANGUAGES CXX)
+project(gemm VERSION 1.0.0)
 
 set(LIB_NAME gemm_metal)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -38,6 +38,7 @@ add_compile_options(-pg)
 
 message(STATUS "Build shared library")
 add_library(${LIB_NAME} SHARED ${SRC_FILES})
+
 target_include_directories(${LIB_NAME}
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
@@ -47,10 +48,10 @@ target_link_libraries(${LIB_NAME} PUBLIC
                     ${EXTRA_LIBS})
 target_compile_definitions(${LIB_NAME} PUBLIC KERNEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/kernels/")
 target_compile_definitions(${LIB_NAME} PUBLIC OUTPUTS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/outputs/")
-target_compile_features(${LIB_NAME} PRIVATE cxx_std_17)
+target_compile_features(${LIB_NAME} PRIVATE cxx_std_20)
 
 set(debug_flags -g)
-set(release_flags -O3 -ffast-math)
+set(release_flags -O3)
 target_compile_options(${LIB_NAME} PUBLIC "$<$<CONFIG:DEBUG>:${debug_flags}>")
 target_compile_options(${LIB_NAME} PUBLIC "$<$<CONFIG:RELEASE>:${release_flags}>")
 
