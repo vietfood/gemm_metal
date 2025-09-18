@@ -5,4 +5,5 @@
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
+#include <MetalFX/MetalFX.hpp>
 #include <QuartzCore/QuartzCore.hpp>
