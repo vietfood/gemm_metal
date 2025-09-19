@@ -34,8 +34,8 @@ mkdir -p outputs
 # Let CMake do its magic. This points to the new clang we just installed.
 cmake -S . -B build -G "Unix Makefiles" \
       -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_C_COMPILER=$(brew --prefix llvm)/bin/clang \
-      -DCMAKE_CXX_COMPILER=$(brew --prefix llvm)/bin/clang++
+      -DCMAKE_C_COMPILER=$(brew --prefix llvm@20)/bin/clang \
+      -DCMAKE_CXX_COMPILER=$(brew --prefix llvm@20)/bin/clang++
 
 # Fire the lasers!
 cmake --build build
@@ -61,7 +61,7 @@ The program will spit out performance numbers to your console and also save a de
 This project is structured so you can follow the optimization journey step-by-step. Each new kernel will be a separate file, building on the lessons of the last.
 
 - [x] **Chapter 0: The Setup.** Build a solid, memory-safe C++ framework with a real benchmark harness. No segfaults allowed.
-- [ ] **Chapter 1: The Tiling.** The first real optimization. Use that sweet, sweet threadgroup memory (`__threadgroup` in Metal, `__shared__` in CUDA) to stop hitting DRAM so much. This is where we should see the first big performance jump.
+- [ ] **Chapter 1: The Tiling.** The first real optimization. Use that sweet, sweet shared memory or SMEM (`__threadgroup` in Metal, `__shared__` in CUDA) to stop hitting DRAM so much. This is where we should see the first big performance jump.
 <!-- -   [ ] **Chapter 2: More Work, Less Laziness.** Make each thread compute more than one output element. This hides instruction latency and is great for register reuse.
 -   [ ] **Chapter 3: SIMD-ify Everything.** Use Metal's vector types (`float4`, `half4`) to get more math done per clock cycle.
 -   [ ] **Chapter 4: The Final Boss.** Memory coalescing, bank conflicts, and other arcane horrors. -->
@@ -70,4 +70,5 @@ This project is structured so you can follow the optimization journey step-by-st
 
 - [Leimao's CUDA GEMM Optimization](https://leimao.github.io/article/CUDA-Matrix-Multiplication-Optimization/)
 - [siboehm's CUDA MMM](https://siboehm.com/articles/22/CUDA-MMM)
+- [Cuda C++ Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/)
 - [Metal Shading Language Specification](https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf)
