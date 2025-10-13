@@ -7,7 +7,7 @@
 #include "gemm/matrix.h"
 #include "gemm/metal_mgr.h"
 
-static const std::string OPT_NAME[] = {"naive"};
+static const std::string OPT_NAME[] = {"naive", "tile_16", "tile_32"};
 
 class BenchmarkMgr
 {

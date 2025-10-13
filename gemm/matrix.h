@@ -1,8 +1,5 @@
 #pragma once
 
-#include "Metal/MTLResource.hpp"
-#pragma once
-
 #include <cstddef>
 #include <iostream>
 #include <memory>
@@ -11,6 +8,7 @@
 
 #include "Metal/MTLBuffer.hpp"
 #include "Metal/MTLDevice.hpp"
+#include "Metal/MTLResource.hpp"
 
 /** Matrix Class on GPU */
 struct MetalBufferDeleter

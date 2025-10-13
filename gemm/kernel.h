@@ -33,6 +33,20 @@ public:
                  .block_height = 32,
                  .tile_width = 1,
                  .tile_height = 1};
+    } else if (kernel_name == "tile_32") {
+      config_ = {
+          .block_width = 32,
+          .block_height = 32,
+          .tile_width = 1,
+          .tile_height = 1,
+      };
+    } else if (kernel_name == "tile_16") {
+      config_ = {
+          .block_width = 16,
+          .block_height = 16,
+          .tile_width = 1,
+          .tile_height = 1,
+      };
     } else {
       throw std::runtime_error("Unknown kernel name for configuration: "
                                + kernel_name);
