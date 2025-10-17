@@ -92,6 +92,7 @@ void BenchmarkMgr::run_benchmark_suite(const std::string& kernel_name)
       HostMatrix D(M, N);
       matmul_cpu(A, B, D);
       if (!equals(C, D)) {
+        print_diff_stats(C, D);
         throw std::runtime_error("FAILED correctness check for shape ("
                                  + std::to_string(M) + "," + std::to_string(N)
                                  + "," + std::to_string(K) + ")");
@@ -123,15 +124,7 @@ void BenchmarkMgr::start_kernel(const DeviceMatrix& A,
   uint N = C.cols;
   uint K = A.cols;
 
-  float alpha = 1.f;
-  float beta = 1.f;
-
-  MatmulParams params{M,
-                      N,
-                      K,
-                      alpha,
-                      beta,
-                      static_cast<uint32_t>(block_size.width),
+  MatmulParams params{M, N, K, static_cast<uint32_t>(block_size.width),
                       static_cast<uint32_t>(block_size.height)};
 
   NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();

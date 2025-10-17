@@ -7,8 +7,6 @@ struct MatmulParams
   uint M;
   uint N;
   uint K;
-  float alpha;
-  float beta;
   uint BLOCK_SIZE_X;
   uint BLOCK_SIZE_Y;
 };
@@ -42,11 +40,13 @@ kernel void matmul_tile_16(device const float * A [[buffer(0)]],
         uint tiledColA = t * TILE_SIZE + thread_x;
         uint tiledRowB = t * TILE_SIZE + thread_y;
 
-        // load elements to tile
+        // load tile A
         if (row < params.M && tiledColA < params.K)
             tileA[thread_y][thread_x] = A[row * params.K + tiledColA];
         else
             tileA[thread_y][thread_x] = 0.0f;
+
+        // load tile B
         if (tiledRowB < params.K && col < params.N)
             tileB[thread_y][thread_x] = B[tiledRowB * params.N + col];
         else
@@ -54,7 +54,7 @@ kernel void matmul_tile_16(device const float * A [[buffer(0)]],
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         // fast matmul on tile
-#pragma unroll
+        #pragma clang loop unroll(full)
         for (uint k = 0; k < TILE_SIZE; ++k) {
             sum += tileA[thread_y][k] * tileB[k][thread_x];
         }
@@ -62,6 +62,6 @@ kernel void matmul_tile_16(device const float * A [[buffer(0)]],
     }
     
     if (row < params.M && col < params.N) {
-        C[row * params.N + col] = params.alpha * sum + params.beta * C[row * params.N + col];
+        C[row * params.N + col] = sum;
     }
 }

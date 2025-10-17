@@ -5,8 +5,6 @@ struct MatmulParams
   uint M;
   uint N;
   uint K;
-  float alpha;
-  float beta;
   uint BLOCK_SIZE_X;
   uint BLOCK_SIZE_Y;
 };
@@ -35,13 +33,11 @@ kernel void matmul_naive(device const float * A [[buffer(0)]],
     const uint N = params.N;
     const uint K = params.K;
 
-    if (i < M && j < N)
-    {
+    if (i < M && j < N) {
         float sum = 0.f;
-        for (uint p = 0; p < K; ++p)
-        {
+        for (uint p = 0; p < K; ++p) {
             sum += A[i * K + p] * B[p * N + j];
         }
-        C[i * N + j] = params.alpha * sum + params.beta * C[i * N + j];
+        C[i * N + j] = sum;
     }
 }

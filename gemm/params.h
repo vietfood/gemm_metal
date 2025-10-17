@@ -18,8 +18,6 @@ struct MatmulParams
   uint32_t M;
   uint32_t N;
   uint32_t K;
-  float alpha;
-  float beta;
   uint32_t BLOCK_SIZE_X;
   uint32_t BLOCK_SIZE_Y;
 };
