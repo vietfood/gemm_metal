@@ -84,8 +84,10 @@ kernel void matmul_tile_threads(device const float * A [[buffer(0)]],
 
         #pragma clang loop unroll(full)
         for (uint k = 0; k < TILE_K; ++k) {
+            #pragma clang loop unroll(full)
             for (uint m = 0; m < WPT_M; ++m) {
                 float a_val = tileA[thread_m * WPT_M + m][k];
+                #pragma clang loop unroll(full)
                 for (uint n = 0; n < WPT_N; ++n) {
                     C_reg[m][n] += a_val * tileB[k][thread_n * WPT_N + n];
                 }
