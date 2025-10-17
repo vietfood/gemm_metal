@@ -47,6 +47,13 @@ public:
           .tile_width = 1,
           .tile_height = 1,
       };
+    } else if (kernel_name == "tile_threads") {
+      config_ = {
+          .block_width = 8,
+          .block_height = 8,
+          .tile_width = 4,
+          .tile_height = 4,
+      };
     } else {
       throw std::runtime_error("Unknown kernel name for configuration: "
                                + kernel_name);
