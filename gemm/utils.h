@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cmath>
 #include <fstream>
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "gemm/matrix.h"
 #include "gemm/params.h"
@@ -181,6 +183,72 @@ inline bool equals(const HostMatrix& A, const HostMatrix& B)
   }
 
   return true;
+}
+
+struct MatrixDiffStats
+{
+  double mean;
+  double stddev;
+  double max_diff;
+  size_t diff_count;
+};
+
+inline MatrixDiffStats calculate_diff_stats(const HostMatrix& A,
+                                            const HostMatrix& B)
+{
+  assert(A.cols == B.cols);
+  assert(A.rows == B.rows);
+
+  const size_t size = A.rows * A.cols;
+  if (size == 0) {
+    return {0.0, 0.0, 0.0, 0};
+  }
+
+  std::vector<double> diffs;
+  diffs.reserve(size);
+
+  double sum_diff = 0.0;
+  double max_diff = 0.0;
+
+  for (size_t i = 0; i < size; ++i) {
+    double diff = 
+        std::abs(static_cast<double>(A[i]) - static_cast<double>(B[i]));
+    diffs.push_back(diff);
+    sum_diff += diff;
+    if (diff > max_diff) {
+      max_diff = diff;
+    }
+  }
+
+  double mean = sum_diff / size;
+
+  double sq_sum = 0.0;
+  for (double d : diffs) {
+    sq_sum += (d - mean) * (d - mean);
+  }
+  double stddev = std::sqrt(sq_sum / size);
+
+  size_t diff_count = 0;
+  for (double d : diffs) {
+    if (d > EQUAL_EPSILON) {
+      diff_count++;
+    }
+  }
+
+  return {mean, stddev, max_diff, diff_count};
+}
+
+inline void print_diff_stats(const HostMatrix& A, const HostMatrix& B)
+{
+  MatrixDiffStats stats = calculate_diff_stats(A, B);
+  std::cout << "Matrix difference summary:" << std::endl;
+  std::cout << "  Mean of absolute differences: " << stats.mean << std::endl;
+  std::cout << "  Stddev of absolute differences: " << stats.stddev
+            << std::endl;
+  std::cout << "  Max absolute difference: " << stats.max_diff << std::endl;
+  std::cout << "  Number of elements differing by more than " << EQUAL_EPSILON
+            << ": " << stats.diff_count << " / " << A.rows * A.cols
+            << std::endl;
 }
 
 inline void copy(const HostMatrix& src, DeviceMatrix& dst)
