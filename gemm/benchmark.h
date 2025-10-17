@@ -8,7 +8,7 @@
 #include "gemm/metal_mgr.h"
 
 static const std::string OPT_NAME[] = {"naive", "tile_16", "tile_32",
-                                       "tile_threads"};
+                                       "tile_threads", "tile_simdgroup"};
 
 class BenchmarkMgr
 {

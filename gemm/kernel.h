@@ -54,6 +54,13 @@ public:
           .tile_width = 4,
           .tile_height = 4,
       };
+    } else if (kernel_name == "tile_simdgroup") {
+      config_ = {
+          .block_width = 16,
+          .block_height = 16,
+          .tile_width = 1,
+          .tile_height = 1,
+      };
     } else {
       throw std::runtime_error("Unknown kernel name for configuration: "
                                + kernel_name);

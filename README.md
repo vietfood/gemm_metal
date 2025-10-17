@@ -2,7 +2,7 @@
 
 This is a diary of my journey to write a fast single-floating point (FP32) matrix multiplication (SGEMM) kernel on my Apple M2 laptop. Since I don't have an NVIDIA card lying around, I'm using Apple's **Metal** API instead of CUDA. The core ideas are the same: making GEMM as fast as possible. 
 
-The theoretical FP32 peak of a 8-core M2 is **~2.84 TFLOPs** (or 2840 GFLOPS) [^1]. Can we even get close? Let's find out.
+The theoretical FP32 peak of a 8-core M2 is **~2.84 TFLOPs** (or 2840 GFLOPS) [^1] [^2]. Can we even get close? Let's find out.
 
 This repo is for anyone who wants to learn GPU optimization but don't have NVIDA GPU like me. The code is (a little bit) clean, and built with modern C++ so we don't leak memory all over the place (and shoot our foot in place).
 
@@ -14,6 +14,7 @@ This repo is for anyone who wants to learn GPU optimization but don't have NVIDA
 | `tile_16` | $\approx 269$ | $\approx 9.12\%$ |
 | `tile_32` | $\approx 195$ | $\approx 6.86\%$ |
 | `tile_threads` | $\approx 359$ | $\approx 12.6\%$ |
+| `tile_simdgroup` | $\approx 421$ | $\approx 17\%$ |
 
 ## Get it running
 
@@ -61,17 +62,18 @@ The program will spit out performance numbers to your console and also save a de
 - `naive`: The humble beginning. 
 - `tile_16` and `tile_32`: Tiling kernel with different tile sizes.
 - `tile_threads`: Tiling kernel with more work on threads.
+- `tile_simdgroup`: Tiling kernel with `simdgroup` (metal intrinsics).
 
 ## The Grand Plan (aka The Optimization Checklist)
 
 This project is structured so you can follow the optimization journey step-by-step. Each new kernel will be a separate file, building on the lessons of the last.
 
-- [x] **Chapter 0: The Setup.** Build a solid, memory-safe C++ framework with a real benchmark harness. No segfaults allowed.
-- [x] **Chapter 1: The Tiling.** The first real optimization. Use that sweet, sweet shared memory or SMEM (`__threadgroup` in Metal, `__shared__` in CUDA) to stop hitting DRAM so much. This is where we should see the first big performance jump.
-- [x] **Chapter 2: More Work, Less Laziness (Register Tiling).** Make each thread compute a small 2x2 or 4x4 block of the output matrix. This increases register reuse and hides instruction latency.
-- [ ] **Chapter 3: Embracing the Hardware (SIMD-group Matrix Primitives).** This is the game-changer. We will stop using scalar math and switch to the hardware's native matrix multiplication capabilities.
-- [ ] **Chapter 4: Hiding Latency (Software Pipelining).** Overlap memory fetching with computation using `async_copy` and double-buffering in `threadgroup` memory.
-- [ ] **Chapter 5: Adaptive Tiling (Specialization & Tuning).** Move from runtime parameters to compile-time constants. Implement heuristics to choose the best tile size and configuration for the target GPU and problem size.
+- [x] **Chapter 0: The Setup** Build a solid, memory-safe C++ framework with a real benchmark harness. No segfaults allowed.
+- [x] **Chapter 1: The Tiling** The first real optimization. Use that sweet, sweet shared memory or SMEM (`__threadgroup` in Metal, `__shared__` in CUDA) to stop hitting DRAM so much. This is where we should see the first big performance jump.
+- [x] **Chapter 2: More Work, Less Laziness (Register Tiling)** Make each thread compute a small 2x2 or 4x4 block of the output matrix. This increases register reuse and hides instruction latency.
+- [x] **Chapter 3: Embracing the Hardware (SIMD-group Matrix Primitives)** This is the game-changer. We will stop using scalar math and switch to the hardware's native matrix multiplication capabilities.
+- [ ] **Chapter 4: Hiding Latency (Software Pipelining)** Overlap memory fetching with computation using `async_copy` and double-buffering in `threadgroup` memory.
+- [ ] **Chapter 5: Adaptive Tiling (Specialization & Tuning)** Move from runtime parameters to compile-time constants. Implement heuristics to choose the best tile size and configuration for the target GPU and problem size.
 
 ## Performance Analysis
 
@@ -109,6 +111,11 @@ The `tile_16` kernel, with its much smaller 2KB footprint, allows many more thre
 > [!CAUTION]
 > TODO
 
+### Chapter 3: SIMD Tilegroup
+
+> [!CAUTION]
+> TODO
+
 ## Resources
 
 - [siboehm's CUDA Matrix Optimization](https://siboehm.com/articles/22/CUDA-MMM)
@@ -119,4 +126,5 @@ The `tile_16` kernel, with its much smaller 2KB footprint, allows many more thre
 - [metal_flash_attention by philipturner](https://github.com/philipturner/metal-flash-attention/tree/main)
 
 [^1]: https://www.cpu-monkey.com/en/cpu-apple_m2_8_gpu
-[^2]: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
+[^2]: https://github.com/philipturner/metal-benchmarks
+[^3]: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
