@@ -15,6 +15,7 @@ for (dt, sz, name) in [(MPSDataType.float16, 2, "fp16"), (MPSDataType.float32, 4
   var ts: [Double] = []
   for r in 0..<12 {
     let cb = q.makeCommandBuffer()!
+    cb.label = "mps_\(name)#\(r)"  // lets gpu_counters.py find these dispatches
     mm.encode(commandBuffer: cb, leftMatrix: MPSMatrix(buffer: A, descriptor: d), rightMatrix: MPSMatrix(buffer: B, descriptor: d), resultMatrix: MPSMatrix(buffer: C, descriptor: d))
     cb.commit(); cb.waitUntilCompleted()
     if r >= 2 { ts.append(cb.gpuEndTime - cb.gpuStartTime) }

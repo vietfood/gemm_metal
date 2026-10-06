@@ -64,3 +64,173 @@ Caveats:
   and clock behaviour, so treat the FP16 figure as approximate.
 - Apple quotes 153 GB/s for M5 memory bandwidth; these kernels reached
   about 77% of that. A better bandwidth kernel may do somewhat better.
+
+## GPU counters and kernel variants (added 2026-09-30)
+
+These scripts profile the GEMM kernels in `kernels/` one at a time, outside
+the harness, so a trace holds one kernel and nothing else.
+
+| File | What it does |
+| --- | --- |
+| `run_kernel.swift` | Runs one kernel on 4096³ random inputs: a warm-up dispatch, then `iters` timed dispatches, each its own command buffer labelled `<function>#<i>`. Spot-checks 16 outputs against a CPU dot product and prints the median GPU time. |
+| `profile_kernel.sh` | Records `run_kernel` with Instruments' Metal System Trace and the **Performance Limiters** counter set, then runs `gpu_counters.py`. Saves the report to `outputs/profiles/<function>.txt`. |
+| `gpu_counters.py` | Averages every GPU counter over the kernel's GPU execution (time-weighted) and reports register-spill events from the Metal compiler. |
+| `compare_profiles.py` | Prints saved reports side by side. |
+| `coarsening_variants.py` | Instantiates the 1D and 2D coarsening kernels at other tile sizes and times them. |
+
+```sh
+probes/profile_kernel.sh kernels/naive.metal  matmul_naive        128 128 32 32
+probes/profile_kernel.sh kernels/tiling.metal matmul_tiling_mnk16 256 256 16 16
+probes/profile_kernel.sh kernels/tiling.metal matmul_tiling_mnk32 128 128 32 32
+probes/profile_kernel.sh kernels/1D_coarsening.metal matmul_1D_coarsening_mn64k8  64 64 512 1
+probes/profile_kernel.sh kernels/2D_coarsening.metal matmul_2D_coarsening_mn128k8 32 32 256 1
+python3 probes/coarsening_variants.py          # timing table
+python3 probes/coarsening_variants.py --write-only
+probes/profile_kernel.sh "$TMPDIR/metal-lab-variants/2D_variants.metal" c2d_b64_k8_t4x4 64 64 256 1
+python3 probes/compare_profiles.py outputs/profiles/*.txt
+```
+
+How the counters are collected, and what to watch for:
+
+- `xctrace` has no public option for the GPU counter set. `profile_kernel.sh`
+  copies Xcode's *Metal System Trace* template and sets its counter profile
+  to 13, which selects **Performance Limiters** on this M5 with Xcode 27.0.
+  I found the value by recording profiles 0–19: 0–12 record only
+  `RT Unit Active`, 13 records 91 counters (occupancy, ALU/F32/integer
+  limiters and utilizations, L1 and last-level cache, bandwidths), 14
+  records ray-tracing counters. Another GPU or Xcode may number the sets
+  differently; if the report has no `F32 Utilization`, try other values.
+- The counters are sampled for the **whole GPU** every few microseconds, not
+  per dispatch. `gpu_counters.py` keeps the samples that overlap the
+  kernel's GPU execution intervals, so other GPU work in those intervals
+  (the window server, another app) leaks in. Keep the machine idle.
+- The trace keeps only the last 4 s of the run (`--window`); longer windows
+  make the counter export much larger (gigabytes of XML).
+- Counter definitions are Apple's, printed by Instruments. *Utilization* is
+  the fraction of a unit's peak work actually done; *Limiter* also counts
+  time the unit tried to work but stalled. Bandwidths in GiB/s are L1
+  counters; `GPU Read Bandwidth` (GB/s) is "memory external to the GPU
+  (potentially device memory)", which may include the system-level cache.
+- Sanity checks that held: `F32 Utilization` matches measured GFLOP/s over
+  the 4.05 TFLOP/s ceiling within 1 percentage point for every kernel, and
+  `Buffer L1 Read Bandwidth × GPU time` equals the bytes the tiled kernels
+  request from device memory by counting (17.2 GB and 34.4 GB).
+
+### Results recorded on 2026-09-30
+
+Same machine as above (M5, macOS 26.7, Xcode 27.0, AC power). Counter reports are
+in `outputs/profiles/`; the comparison below is
+`python3 probes/compare_profiles.py` over them:
+
+```text
+                                                  naive    tiled16    tiled32         1D     2D_8x8     2D_4x4
+GFLOP/s                                             376        667        683       1230        563       1746
+Kernel Occupancy (%)                              97.51      74.63      81.65      64.50      20.18      56.87
+Compute SIMD Groups Inflight                      93.61      71.64      78.39      61.92      19.37      54.60
+Instruction Throughput Limiter (%)                61.30      80.97      80.59      77.96      38.06      73.64
+Instruction Throughput Utilization (%)            20.46      25.48      28.79      23.74      10.62      22.64
+ALU Utilization (%)                               22.76      28.80      40.03      33.36      14.85      35.87
+F32 Limiter (%)                                    9.20      28.19      25.96      46.01      16.71      60.72
+F32 Utilization (%)                                9.14      16.17      16.54      30.20      13.65      42.24
+Integer and Conditional Limiter (%)               36.08      51.35      68.96      47.02      25.42      39.81
+Integer and Conditional Utilization (%)           27.28      39.34      62.43      35.40      15.77      27.45
+Control Flow Limiter (%)                          19.09      32.94      17.76      10.31      21.35      18.55
+L1 Cache Limiter (%)                               6.81       8.06      10.31       6.86      15.63       6.96
+L1 Cache Utilization (%)                           6.81       8.06      10.31       6.86      15.60       6.95
+ThreadGroup L1 Read Accesses (%)                   0.00      69.14      89.13      74.32       4.41      70.95
+Buffer L1 Read Accesses (%)                       99.88      15.37       5.41      12.39       0.74      14.20
+Threadgroup Memory L1 Read Bandwidth (GiB/s)       0.00     698.94    1312.25     435.02      98.61     508.58
+Buffer L1 Read Bandwidth (GiB/s)                 788.22     155.38      79.59      72.54      16.44     101.74
+Buffer L1 Miss Rate (%)                           18.60      97.22      99.27      68.49      94.67      80.24
+Last Level Cache Limiter (%)                      25.45      19.73      10.38      10.91      13.94      17.93
+Last Level Cache Bandwidth (GB/s)                196.59     152.37      80.21      78.11     107.62     127.52
+GPU Read Bandwidth (GB/s)                        120.03      80.63      39.92      45.67      13.80      59.92
+Register Pressure Influence (%)                    0.00       0.00       0.01       0.00       0.19       0.00
+Register spills                                    none       none       none       none  272 Bytes       none
+```
+
+`python3 probes/coarsening_variants.py` (GPU time, median of 5):
+
+| kernel | BM=BN | BK | TM x TN | threads | loads/FMA (1D) | GFLOP/s |
+|---|---:|---:|---|---:|---:|---:|
+| c1d_b32_tm1 | 32 | 32 | 1 x 1 | 1024 | 2.000 | 646 |
+| c1d_b32_tm2 | 32 | 16 | 2 x 1 | 512 | 1.500 | 1007 |
+| c1d_b32_tm4 | 32 | 8 | 4 x 1 | 256 | 1.250 | 1153 |
+| c1d_b32_tm8 | 32 | 4 | 8 x 1 | 128 | 1.125 | 1200 |
+| c1d_b32_tm16 | 32 | 2 | 16 x 1 | 64 | 1.062 | 968 |
+| c1d_b64_tm4 | 64 | 16 | 4 x 1 | 1024 | 1.250 | 1217 |
+| c1d_b64_tm8 | 64 | 8 | 8 x 1 | 512 | 1.125 | 1256 |
+| c1d_b64_tm16 | 64 | 4 | 16 x 1 | 256 | 1.062 | 1042 |
+| c2d_b128_k8_t8x8 | 128 | 8 | 8 x 8 | 256 | | 563 |
+| c2d_b64_k8_t8x8 | 64 | 8 | 8 x 8 | 64 | | 477 |
+| c2d_b64_k8_t4x4 | 64 | 8 | 4 x 4 | 256 | | 1742 |
+| c2d_b64_k16_t4x4 | 64 | 16 | 4 x 4 | 256 | | 1841 |
+| c2d_b128_k8_t4x4 | 128 | 8 | 4 x 4 | 1024 | | 1647 |
+
+With 8×8 outputs per thread, Instruments reports a 272-byte register spill
+for the 2D kernel and it runs at about 20% kernel occupancy; at 4×4 it does
+not spill and is the fastest non-matrix kernel here.
+
+### SIMD-group, TensorOps, MPS, and MLX (added 2026-10-01)
+
+```sh
+probes/profile_kernel.sh kernels/simdgroup.metal simdgroup_8x8          512 512  32 1 3
+probes/profile_kernel.sh kernels/simdgroup.metal simdgroup_32x32        128 128 128 1 3
+probes/profile_kernel.sh kernels/simdgroup.metal simdgroup_32x32_shared 128 128 128 1 3
+probes/profile_kernel.sh kernels/tensorops.metal tensorops_64x64        64 64 128 1 3
+probes/profile_kernel.sh kernels/tensorops.metal tensorops_64x128       32 64 128 1 3
+probes/profile_kernel.sh kernels/tensorops.metal tensorops_128x128      32 32 128 1 3
+probes/profile_kernel.sh kernels/tensorops_sync.metal tensorops_sync_k256        64 64 128 1 3
+probes/profile_kernel.sh kernels/tensorops_sync.metal tensorops_sync_64x128_k256 32 64 128 1 3
+
+# MPS: one trace holds both precisions; command buffers are labelled mps_<name>#<i>
+W="$TMPDIR/metal-lab-profile"; swiftc -O probes/mps_gemm.swift -o "$W/mps_gemm"
+xcrun xctrace record --template "$W/performance-limiters.tracetemplate" --no-prompt \
+  --window 4s --output "$W/mps.trace" --target-stdout - --launch -- "$W/mps_gemm"
+python3 probes/gpu_counters.py "$W/mps.trace" mps_fp32
+python3 probes/gpu_counters.py "$W/mps.trace" mps_fp16
+
+# MLX does not label command buffers: select the python process's buffers
+# with at least 20 ms of GPU time (3 warm-up + 10 timed products)
+xcrun xctrace record --template "$W/performance-limiters.tracetemplate" --no-prompt \
+  --window 4s --output "$W/mlx_fp32.trace" --target-stdout - --launch -- \
+  "$(command -v python3)" probes/mlx_gemm.py 4096 10
+python3 probes/gpu_counters.py "$W/mlx_fp32.trace" mlx_fp32 --min-ms 20 --process python
+```
+
+`run_kernel.swift` compiles a source with Metal 4 (`languageVersion = 4.0`)
+when it includes `<metal_tensor>`. The GPU time-slices a command buffer with
+other processes (window server, UI apps), so one buffer can appear as several
+intervals in `metal-gpu-intervals`; all of them carry the buffer's label, so
+label selection catches every fragment, and `--min-ms` groups fragments by
+label before applying the threshold.
+
+```text
+                                  64x64     64x128    128x128     sync64  sync64x128
+GFLOP/s                            3243       2984       1036       3785        3789
+Kernel Occupancy (%)              16.12      18.96      16.41      21.71       18.11
+F32 Utilization (%)               77.34      73.67      29.10      91.87       91.94
+Last Level Cache Limiter (%)      55.60      35.94      58.26      41.02       37.87
+GPU Read Bandwidth (GB/s)        126.11      98.94     138.93      91.09       71.63
+Register spills                    none   16 Bytes       none  144 Bytes   368 Bytes
+
+                                                 winner      mps32      mlx32      mps16
+GFLOP/s                                            3789       3385       3417      15707
+F32 Utilization (%)                               91.94      83.08      82.52       0.45
+F16 Utilization (%)                                0.02       0.09       0.03       0.04
+Neural Accelerator Utilization (%)                 0.00       0.00       0.00      93.38
+Threadgroup Memory L1 Read Bandwidth (GiB/s)       0.00     198.72     397.45       0.00
+GPU Read Bandwidth (GB/s)                         71.63     128.62     139.16     105.97
+```
+
+- FP32 never reaches the Neural Accelerators here (TensorOps with
+  `relaxed_precision = false`, MPS, MLX); MPS FP16 does, at 93%.
+- Bytes per product = `GPU Read Bandwidth × median GPU time`: 5.3, 4.6, 18.4,
+  3.3, and 2.6 GB for the five TensorOps kernels (25.7, 30.2, 7.5, 41.6, and
+  52.9 FLOP/byte); 5.2 GB for MPS FP32 (26.3) and 5.6 GB for MLX (24.6).
+  `GPU Read Bandwidth` reached 139 GB/s, above the 118 GB/s streaming probe,
+  so it likely includes system-level-cache hits.
+- GPU-time ordering is noisy at the top. Two re-timings without counters
+  (`run_kernel`, 15 iterations): sync 64×64 gave 3808 and 3682 GFLOP/s, sync
+  64×128 gave 3651 and 3810; full-K 64×64 gave 3444 and 3285, 64×128 gave
+  3180 and 3168.
